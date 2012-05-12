@@ -1,7 +1,6 @@
 import web
 import json
 import random
-import uuid
 import hashlib
 
 urls = (
@@ -31,20 +30,26 @@ class Recipe(object):
             'ingredients': self.ingredients
         }
 
-def generate_recipe():
-    all_ingr = [x.strip() for x in file('ingredients.juice')]
-    ret = {}
-    for k in range(10):
-        fruit = random.choice(all_ingr)
-        if fruit in ret:
-            ret[fruit] += 100
-        else:
-            ret[fruit] = 100
-    ingr = sorted(ret.items())
-    id = hashlib.md5(repr(ingr)).hexdigest()
-    recipe = Recipe(id, dict(ingr))
-    active[id] = recipe
-    return recipe
+class RecipeGenerator(object):
+    def __init__(self):
+        with file('ingredients.juice') as f:
+            self.ingredients = [x.strip() for x in f]
+
+    def generate(self):
+        ret = {}
+        for k in range(10):
+            fruit = random.choice(self.ingredients)
+            if fruit in ret:
+                ret[fruit] += 100
+            else:
+                ret[fruit] = 100
+        ingr = sorted(ret.items())
+        id = hashlib.md5(repr(ingr)).hexdigest()
+        recipe = Recipe(id, dict(ingr))
+        active[id] = recipe
+        return recipe
+
+generate_recipe = RecipeGenerator().generate
 
 def select_unseen_recipe(juicer):
     return random.choice([x for x in active.values() if not juicer in x.seen_by])
