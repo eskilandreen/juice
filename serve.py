@@ -99,6 +99,7 @@ class ratings(Base):
             raise web.badrequest()
         rating = data['rating']
         recipe.ratings[juicer] = int(rating)
+        return json.dumps({})
 
 
 if __name__ == "__main__":
