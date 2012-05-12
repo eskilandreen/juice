@@ -40,13 +40,17 @@ def generate_recipe():
     id = hashlib.md5(repr(ingr)).hexdigest()
     return Recipe(id, dict(ingr))
 
-class generate:
+class Base(object):
+    def __init__(self):
+        web.header('Content-type', 'application/json')
+
+class generate(Base):
     def GET(self):
         recipe = generate_recipe()
         lookup[recipe.id] = recipe
         return json.dumps(recipe.to_dict(), indent=4)
 
-class get:
+class get(Base):
     def GET(self, id):
         try:
             recipe = lookup[id]
@@ -54,7 +58,7 @@ class get:
         except KeyError:
             raise web.notfound()
 
-class ratings:
+class ratings(Base):
 
     def get_recipe(self, recipe_id):
         try:

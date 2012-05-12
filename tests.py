@@ -3,15 +3,13 @@ import json
 import subprocess
 import time
 import nose.tools as nt
+import serve
+from paste.fixture import TestApp, AppError
 
 class TestServe(object):
 
     def setup(self):
-        self.p = subprocess.Popen(['python', 'serve.py'])
-        time.sleep(1)
-
-    def teardown(self):
-        self.p.terminate()
+        serve.lookup = {}
 
     def test_create_and_get(self):
         # generate a new recipe
@@ -24,13 +22,12 @@ class TestServe(object):
 
         # fetch that recipe
         recipe_id = data['id']
-        res2 = urllib2.urlopen('http://localhost:8080/' + recipe_id).read()
-        data2 = json.loads(res2)
+        data2 = _get_recipe(recipe_id)
         assert data == data2
 
         # fetch a non-existing id
-        with nt.assert_raises(urllib2.HTTPError):
-            res3 = urllib2.urlopen('http://localhost:8080/not_an_id').read()
+        with nt.assert_raises(AppError):
+            _get_recipe('not_an_id')
 
     def test_rate_negative(self):
         data = _create_new()
@@ -69,19 +66,33 @@ class TestServe(object):
     def test_only_users_can_rate(self):
         data = _create_new()
         id = data['id']
-        with nt.assert_raises(urllib2.HTTPError) as e:
-            _rate(id, None, -1)
-        assert e.exception.getcode() == 400
+        _rate(id, None, -1, status=400)
 
 def _create_new():
-    res = urllib2.urlopen('http://localhost:8080').read()
-    return json.loads(res)
+    res = _get('/')
+    return json.loads(res.body)
 
-def _rate(recipe_id, user, rating):
+def _rate(recipe_id, user, rating, status='*'):
     data = json.dumps({'user': user, 'rating': rating})
-    urllib2.urlopen('http://localhost:8080/%s/ratings' % recipe_id, data)
+    _post('/%s/ratings' % recipe_id, data, status=status)
 
 def _get_ratings(recipe_id):
-    ret = urllib2.urlopen('http://localhost:8080/%s/ratings' % recipe_id)
-    return json.load(ret)
+    ret = _get('/%s/ratings' % recipe_id)
+    return json.loads(ret.body)
+
+def _get_recipe(recipe_id):
+    res = _get('/%s' % recipe_id)
+    return json.loads(res.body)
+
+def _get(path):
+    middleware = []
+    testApp = TestApp(serve.app.wsgifunc(*middleware))
+    r = testApp.get(path, headers={'Content-Type': 'text/plain'})
+    return r
+
+def _post(path, data, status='*'):
+    middleware = []
+    testApp = TestApp(serve.app.wsgifunc(*middleware))
+    r = testApp.post(path, data, status=status)
+    return r
 
