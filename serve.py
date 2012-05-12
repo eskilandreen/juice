@@ -5,14 +5,17 @@ import uuid
 import hashlib
 
 urls = (
-    '/', 'generate',
+    '/', 'select',
     '/(\w+)', 'get',
     '/(\w+)/ratings', 'ratings',
 )
 
 app = web.application(urls, globals())
 
-lookup = {}
+MAX_ACTIVE_JUICES = 10
+
+active = {}
+discarded = {}
 
 class Recipe(object):
 
@@ -20,6 +23,7 @@ class Recipe(object):
         self.id = id
         self.ingredients = ingredients
         self.ratings = {}
+        self.seen_by = set()
 
     def to_dict(self):
         return {
@@ -38,22 +42,36 @@ def generate_recipe():
             ret[fruit] = 100
     ingr = sorted(ret.items())
     id = hashlib.md5(repr(ingr)).hexdigest()
-    return Recipe(id, dict(ingr))
+    recipe = Recipe(id, dict(ingr))
+    active[id] = recipe
+    return recipe
+
+def select_unseen_recipe(juicer):
+    return random.choice([x for x in active.values() if not juicer in x.seen_by])
 
 class Base(object):
     def __init__(self):
         web.header('Content-type', 'application/json')
 
-class generate(Base):
+class select(Base):
     def GET(self):
-        recipe = generate_recipe()
-        lookup[recipe.id] = recipe
+        juicer = web.input()['juicer']
+        if not active:
+            recipe = generate_recipe()
+        elif all(juicer in x.seen_by for x in active.values()):
+            recipe = generate_recipe()
+        elif len(active) < MAX_ACTIVE_JUICES and random.random() < 0.5:
+            recipe = generate_recipe()
+        else:
+            recipe = select_unseen_recipe(juicer)
+
+        recipe.seen_by.add(juicer)
         return json.dumps(recipe.to_dict(), indent=4)
 
 class get(Base):
     def GET(self, id):
         try:
-            recipe = lookup[id]
+            recipe = active[id]
             return json.dumps(recipe.to_dict(), indent=4)
         except KeyError:
             raise web.notfound()
@@ -62,7 +80,7 @@ class ratings(Base):
 
     def get_recipe(self, recipe_id):
         try:
-            return lookup[recipe_id]
+            return active[recipe_id]
         except KeyError:
             raise web.notfound()
 
@@ -76,11 +94,11 @@ class ratings(Base):
     def POST(self, recipe_id):
         recipe = self.get_recipe(recipe_id)
         data = json.loads(web.data())
-        user = data.get('user')
-        if not user:
+        juicer = data.get('juicer')
+        if not juicer:
             raise web.badrequest()
         rating = data['rating']
-        recipe.ratings[user] = int(rating)
+        recipe.ratings[juicer] = int(rating)
 
 
 if __name__ == "__main__":

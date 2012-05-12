@@ -13,7 +13,7 @@ class TestServe(object):
 
     def test_create_and_get(self):
         # generate a new recipe
-        data = _create_new()
+        data = _select_juice('elin')
 
         assert 'id' in data
         assert 'ingredients' in data
@@ -30,7 +30,7 @@ class TestServe(object):
             _get_recipe('not_an_id')
 
     def test_rate_negative(self):
-        data = _create_new()
+        data = _select_juice('elin')
         id = data['id']
         rating = -1
 
@@ -43,7 +43,7 @@ class TestServe(object):
         assert data['ratings']['elin'] == rating
 
     def test_ratings_can_be_overwritten(self):
-        data = _create_new()
+        data = _select_juice('elin')
         id = data['id']
 
         _rate(id, 'elin', -1)
@@ -54,8 +54,8 @@ class TestServe(object):
         data = _get_ratings(id)
         assert data['ratings'] == {'elin': 1}
 
-    def test_each_user_can_rate_a_recipe_once(self):
-        data = _create_new()
+    def test_each_juicer_can_rate_a_recipe_once(self):
+        data = _select_juice('elin')
         id = data['id']
 
         _rate(id, 'elin', -1)
@@ -63,17 +63,26 @@ class TestServe(object):
         data = _get_ratings(id)
         assert data['ratings'] == {'elin': -1, 'eskil': 1}
 
-    def test_only_users_can_rate(self):
-        data = _create_new()
+    def test_only_juicers_can_rate(self):
+        data = _select_juice('elin')
         id = data['id']
         _rate(id, None, -1, status=400)
 
-def _create_new():
-    res = _get('/')
+    def test_has_max_10_active_juices(self):
+        existing = [_select_juice('elin')['id'] for i in range(10)]
+        assert _select_juice('eskil')['id'] in existing
+
+    def test_max_active_juices_does_not_restrict_for_single_user(self):
+        existing = [_select_juice('elin')['id'] for i in range(11)]
+        assert len(existing) == 11
+
+
+def _select_juice(juicer):
+    res = _get('/', params={'juicer': juicer})
     return json.loads(res.body)
 
-def _rate(recipe_id, user, rating, status='*'):
-    data = json.dumps({'user': user, 'rating': rating})
+def _rate(recipe_id, juicer, rating, status='*'):
+    data = json.dumps({'juicer': juicer, 'rating': rating})
     _post('/%s/ratings' % recipe_id, data, status=status)
 
 def _get_ratings(recipe_id):
@@ -84,10 +93,10 @@ def _get_recipe(recipe_id):
     res = _get('/%s' % recipe_id)
     return json.loads(res.body)
 
-def _get(path):
+def _get(path, **kwargs):
     middleware = []
     testApp = TestApp(serve.app.wsgifunc(*middleware))
-    r = testApp.get(path, headers={'Content-Type': 'text/plain'})
+    r = testApp.get(path, headers={'Content-Type': 'text/plain'}, **kwargs)
     return r
 
 def _post(path, data, status='*'):
