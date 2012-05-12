@@ -4,15 +4,17 @@ import json
 import random
 
 def main():
-    user = 'elin'
+    i_user = 0 
     while(True):
-        recepie = _select_juice(user)
+        name = 'applelover' + str(i_user)
+        recepie = _select_juice(name)
         print "Got recepie: " + str(recepie)
         should_rate = random.choice([1,0])
         if [x for x in recepie['ingredients'].keys() if x.startswith('Apple')]:
-            _rate(recepie['id'], 'applelover',  1)
+            _rate(recepie['id'], name,  1)
         else:
-            _rate(recepie['id'], 'applelover', -1)
+            _rate(recepie['id'], name, -1)
+        i_user = (i_user+1)%20
 
 def _select_juice(juicer):
     res = _get('/', params={'juicer': juicer})
